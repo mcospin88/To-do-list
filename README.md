@@ -10,6 +10,14 @@ Este es un proyecto backend desarrollado con **FastAPI** que gestiona tareas (to
 - [Pydantic](https://docs.pydantic.dev/)
 - [Uvicorn](https://www.uvicorn.org/)
 
+## Estructura del proyecto
+
+- **main.py**: Inicia la aplicación FastAPI.
+- **database.py**: Define la conexión con PostgreSQL y el motor SQLAlchemy.
+- **models.py**: Contiene la definición del modelo `Task` para la base de datos.
+- **schemas.py**: Define los esquemas Pydantic para validar datos y estructurar las respuestas.
+- **routers.py**: Contiene los endpoints (rutas) para la API.
+
 ## Instalación y ejecución
 
 1. **Clona este repositorio**
