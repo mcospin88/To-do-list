@@ -12,41 +12,143 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/tasks/", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED)
-def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
-    db_task = models.Task(**task.dict())
+@router.post("/tasks/", response_model=dict, status_code=status.HTTP_201_CREATED)
+def create_task(task_data: schemas.TaskCreateRequest, db: Session = Depends(get_db)):
+    attributes = task_data.data.attributes
+    db_task = models.Task(**attributes.dict())
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
-    return db_task
+    return {
+        "data": {
+            "type": "task",
+            "id": db_task.id,
+            "attributes": {
+                "title": db_task.title,
+                "description": db_task.description,
+                "done": db_task.done
+            }
+        }
+    }
 
-@router.get("/tasks/", response_model=list[schemas.TaskResponse])
+@router.get("/tasks/", response_model=dict)
 def read_tasks(db: Session = Depends(get_db)):
-    return db.query(models.Task).all()
+    tasks = db.query(models.Task).filter(models.Task.is_deleted == False).all()
+    return {
+        "data": [
+            {
+                "type": "task",
+                "id": task.id,
+                "attributes": {
+                    "title": task.title,
+                    "description": task.description,
+                    "done": task.done
+                }
+            } for task in tasks
+        ]
+    }
 
-@router.get("/tasks/{task_id}", response_model=schemas.TaskResponse)
+@router.get("/tasks/{task_id}", response_model=dict)
 def read_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.is_deleted == False).first()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    return task
+    return {
+        "data": {
+            "type": "task",
+            "id": task.id,
+            "attributes": {
+                "title": task.title,
+                "description": task.description,
+                "done": task.done
+            }
+        }
+    }
 
-@router.put("/tasks/{task_id}", response_model=schemas.TaskResponse)
-def update_task(task_id: int, updated_task: schemas.TaskUpdate, db: Session = Depends(get_db)):
-    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+@router.put("/tasks/{task_id}", response_model=dict)
+def update_task(task_id: int, task_data: schemas.TaskUpdateRequest, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.is_deleted == False).first()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    for key, value in updated_task.dict().items():
+    for key, value in task_data.data.attributes.dict().items():
         setattr(task, key, value)
     db.commit()
     db.refresh(task)
-    return task
+    return {
+        "data": {
+            "type": "task",
+            "id": task.id,
+            "attributes": {
+                "title": task.title,
+                "description": task.description,
+                "done": task.done
+            }
+        }
+    }
+
+@router.patch("/tasks/{task_id}", response_model=dict)
+def patch_task(task_id: int, task_data: schemas.TaskUpdateRequest, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.is_deleted == False).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    for key, value in task_data.data.attributes.dict(exclude_unset=True).items():
+        setattr(task, key, value)
+    db.commit()
+    db.refresh(task)
+    return {
+        "data": {
+            "type": "task",
+            "id": task.id,
+            "attributes": {
+                "title": task.title,
+                "description": task.description,
+                "done": task.done
+            }
+        }
+    }
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.is_deleted == False).first()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    db.delete(task)
+    task.is_deleted = True
     db.commit()
     return
+
+@router.get("/tasks/deleted/", response_model=dict)
+def read_deleted_tasks(db: Session = Depends(get_db)):
+    tasks = db.query(models.Task).filter(models.Task.is_deleted == True).all()
+    return {
+        "data": [
+            {
+                "type": "task",
+                "id": task.id,
+                "attributes": {
+                    "title": task.title,
+                    "description": task.description,
+                    "done": task.done
+                }
+            } for task in tasks
+        ]
+    }
+
+@router.patch("/tasks/{task_id}/restore", response_model=dict)
+def restore_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.is_deleted == True).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or not deleted")
+    task.is_deleted = False
+    db.commit()
+    db.refresh(task)
+    return {
+        "data": {
+            "type": "task",
+            "id": task.id,
+            "attributes": {
+                "title": task.title,
+                "description": task.description,
+                "done": task.done
+            }
+        }
+    }

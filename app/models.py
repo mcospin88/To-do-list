@@ -7,3 +7,4 @@ class Task(Base):
     title = Column(String, index=True)
     description = Column(String, nullable=True)
     done = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False, nullable=False) 
